@@ -1,52 +1,36 @@
 # **** reefminder docker image **** #
+# 1) Build the Dockerfile
+# 2) docker login
+# 3) docker build -t telbot/reefminder .
+# 4) docker images (get Image ID of latest)
+# 5) docker tag <Image ID> telbot/reefminder:v0.2
+# 6) docker push telbot/reefminder
 
 FROM       ubuntu:latest
 MAINTAINER David Bingham <david.r.bingham@gmail.com>
 
+WORKDIR /data
+
+# **** Install Common Tools **** #
+
+RUN apt-get update
+RUN apt-get -y install \
+bzip2 unzip openssh-client git curl wget \
+expect build-essential
+
 # **** Install openjdk 8 **** #
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-		bzip2 \
-		unzip \
-		xz-utils \
-	&& rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openjdk-8-jdk
 
-RUN echo 'deb http://httpredir.debian.org/debian jessie-backports main' > /etc/apt/sources.list.d/jessie-backports.list
-
-ENV LANG C.UTF-8
-
-RUN { \
-		echo '#!/bin/sh'; \
-		echo 'set -e'; \
-		echo; \
-		echo 'dirname "$(dirname "$(readlink -f "$(which javac || which java)")")"'; \
-	} > /usr/local/bin/docker-java-home \
-	&& chmod +x /usr/local/bin/docker-java-home
-
-ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64
-ENV JAVA_VERSION 8u102
-ENV JAVA_DEBIAN_VERSION 8u102-b14.1-1~bpo8+1
-ENV CA_CERTIFICATES_JAVA_VERSION 20140324
-
-RUN set -x \
-	&& apt-get update \
-	&& apt-get install -y \
-		openjdk-8-jdk="$JAVA_DEBIAN_VERSION" \
-		ca-certificates-java="$CA_CERTIFICATES_JAVA_VERSION" \
-	&& rm -rf /var/lib/apt/lists/* \
-	&& [ "$JAVA_HOME" = "$(docker-java-home)" ]
-
-RUN /var/lib/dpkg/info/ca-certificates-java.postinst configure
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
+RUN export JAVA_HOME
 
 # **** Install mongodb **** #
 
-RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 7F0CEB10
-RUN echo "deb http://repo.mongodb.org/apt/ubuntu "$(lsb_release -sc)"/mongodb-org/3.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-3.0.list
+RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv EA312927
+RUN echo "deb http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-3.2.list
 RUN apt-get update && apt-get install -y mongodb-org
 RUN mkdir -p /data/db
-
-EXPOSE 27017
-ENTRYPOINT ["/usr/bin/mongod"]
 
 # **** Install node.js **** #
 
@@ -74,4 +58,20 @@ RUN curl -SLO "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-
   && tar -xJf "node-v$NODE_VERSION-linux-x64.tar.xz" -C /usr/local --strip-components=1 \
   && rm "node-v$NODE_VERSION-linux-x64.tar.xz" SHASUMS256.txt.asc SHASUMS256.txt
 
-CMD [ "node" ]
+# **** Install Python **** #
+
+RUN \
+  apt-get update && \
+  apt-get install -y python python-dev python-pip python-virtualenv && \
+  rm -rf /var/lib/apt/lists/*
+
+# **** Install Gradle **** #
+
+RUN wget https://services.gradle.org/distributions/gradle-3.0-bin.zip
+RUN unzip gradle-3.0-bin.zip
+RUN mv gradle-3.0 /opt/
+RUN rm gradle-3.0-bin.zip
+
+# **** Finalize **** #
+
+CMD ["bash","node"]
